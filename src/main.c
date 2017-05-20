@@ -32,7 +32,6 @@
 #define TOGGLEBIT(x,b)     x^=b;        //Toggles the particular bit
 
 void WaitMs(unsigned int ms);
-void welcome_screen(void);
 
 int main()
 {
@@ -40,12 +39,6 @@ int main()
 
     uart_init(9600);        //Initialise the USART Module with the given Baudrate and
                                                             //Frame format.
-    uart_puts_P("\r\n\t************************************************ ");
-    uart_puts_P("\r\n\t             ATMEGA 8 DEVELOPMENT BOARD ");
-    uart_puts_P("\r\n\t************************************************ ");
-    uart_puts("\r\n\t\t  ");
-    uart_puts_P("\rWelcome to ElecDude.  Press any to display.....");
-    uart_puts("\r\r\r\r");
 
     while(1)   //Enter into a uncoditional while loop..
         {
@@ -54,7 +47,7 @@ int main()
             uart_putc('<');cd /
             uart_putc(ch);
             uart_putc('>');*/
-    		uart_puts("Hello world\n");
+    		uart_puts("Hello pd\n");
             WaitMs(1000);
         }
 
