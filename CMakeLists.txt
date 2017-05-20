@@ -1,7 +1,12 @@
 set(AVRCPP   avr-g++)
 set(AVRC     avr-gcc)
 set(AVRDUDE  avrdude)
+set(AVRSTRIP avr-strip)
+set(OBJCOPY  avr-objcopy)
+set(OBJDUMP  avr-objdump)
+set(AVRSIZE  avr-size)
 set(AVR_PROGRAMMER usbasp)
+set(MCU Atmega8)
 set(AVR_MCU atmega8)
 set(F_CPU 8000000)
 
@@ -10,7 +15,6 @@ set(CMAKE_CXX_COMPILER ${AVRCPP})
 set(CMAKE_C_COMPILER   ${AVRC})
 set(CMAKE_ASM_COMPILER   ${AVRC})
 
-set(AVR_SIZE_ARGS -C;--mcu=${AVR_MCU})
 project (GPS_tracker C CXX C)
 
 # Important project paths
@@ -66,6 +70,16 @@ set(CMAKE_ASM_FLAGS   "${CFLAGS}")
 # Project setup
 add_executable(${PROJECT_NAME} ${SRC_FILES} ${LIB_SRC_FILES})
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}.elf")
+
+# Compiling targets
+add_custom_target(strip ALL     ${AVRSTRIP} "${PROJECT_NAME}.elf" DEPENDS ${PROJECT_NAME})
+add_custom_target(hex   ALL     ${OBJCOPY} -R .eeprom -O ihex "${PROJECT_NAME}.elf" "${PROJECT_NAME}.hex" DEPENDS strip)
+
+# Flashing targets
+add_custom_target(flash         ${AVRDUDE} -c ${AVR_PROGRAMMER} -p ${MCU} ${PROG_ARGS} -U flash:w:${PROJECT_NAME}.hex DEPENDS hex)
+
+# Fuses
+add_custom_target(fuses_8mhz ${AVRDUDE} -c ${AVR_PROGRAMMER} -p ${MCU} ${PROG_ARGS} -U lfuse:w:0xff:m -U hfuse:w:0xd9:m)
 
 
 # Config logging
