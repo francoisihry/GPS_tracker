@@ -2,20 +2,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-coordonate* read_coordonate(char* trame){
-	//char lat[10], longi[10];
-	coordonate* c = malloc(sizeof(coordonate));
+void read_coordonate(Coordonate* fixed_position, char* trame)
+{
 	// +CGNSINF: 1,1,20170520190355.000,50.837443,4.367987,94.900,0.11,313.2,1,,0.8,1.2,1.0,,14,11,,,39,,
 	char p;
-	sscanf( trame, "+CGNSINF: %c,%c,%[^','],"
+	char run_status;
+	sscanf( trame, " +CGNSINF: %c,%c,%[^','],"
 			"%[^','],%[^','],%[^',']"
-			",%[^','],%[^','?]", &(c->run_status),
-										&(c->fix_status),
-										c->utc_date_and_time,
-										c->latitude,
-										c->longitude,
-										c->altitude,
-										c->speed_over_ground,
-										c->course_over_ground);
-	return c;
+			",%[^','],%[^','?]", &(run_status),
+										&(fixed_position->fix_status),
+										fixed_position->utc_date_and_time,
+										fixed_position->latitude,
+										fixed_position->longitude,
+										fixed_position->altitude,
+										fixed_position->speed_over_ground,
+										fixed_position->course_over_ground);
+	fixed_position->run_status = '1';
+
+	//printf(fixed_position->run_status);
 }

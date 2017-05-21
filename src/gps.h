@@ -22,8 +22,8 @@ typedef struct coordonate
 
 */
 
-}coordonate;
+}Coordonate;
 
 
 
-coordonate* read_coordonate(char* trame);
+void read_coordonate(Coordonate* fixed_position, char* trame);

@@ -1,69 +1,165 @@
-/*******************************************************************************
-                        SERIAL COMMUNICATION ATM8
+#include <stdlib.h>
+# include <avr/io.h>
+#include <util/delay.h>
+# include <avr/interrupt.h>
+#include "gps.h"
 
-    This source code introduces you to the working of the USART Module
-    available in ATMEGA 8 @8MHz system clock.
+# define USART_BAUDRATE 9600
+# define BAUD_PRESCALE (((( F_CPU / 16) + ( USART_BAUDRATE / 2) ) / ( USART_BAUDRATE ) ) - 1)
+#define TRUE 1
+#define FALSE 0
 
-    This code does the task of preparing a menu driven user interface on
-    hyperterminal using the USART Module.
+typedef enum state {
+	NOT_SECURED, GEO_SECURED, ALARM
+} State;
 
-    Here the USART Module is configured to operate in the Asychronous
-    mode. With a Frame format of 8-bit Data with 1 stop bit and no parity
-    bit the baud rate is fixed for 9600 bps.
+void set_state(State);
+void uart_init();
+void uart_transmit_string(char string[]);
+void uart_transmit_char(unsigned char data);
+Coordonate get_position();
+Coordonate get_fixed_position();
+void read_command(char* cmd);
 
-***********************************ELECDUDE.COM*********************************/
-
-
-#define F_CPU 8000000UL            //Define the MPU operating frequency
-#define FOSC 8000000UL
-
-#include <avr/io.h>                //Header file for AVR device specific I/O Definitions.
-#include <avr/interrupt.h>            //Header file for incorportaing interrupt handling faclity (not used here).
-#include <util/delay.h>                //Header file for incorporating delay routines.
-#include <avr/pgmspace.h>            //Header file for incorporating Program space string utilities.
-#include <stdlib.h>                //ISO Standard library of C functions and macros.
-#include "usart.h"                //Defines C functions for accessing USART Module.
+int has_moved();
 
 
-#define BIT(x)            (1 << (x))    //Set a particular bit mask
-#define CHECKBIT(x,b)     (x&b)        //Checks bit status
-#define SETBIT(x,b)     x|=b;        //Sets the particular bit
-#define CLEARBIT(x,b)     x&=~b;        //Sets the particular bit
-#define TOGGLEBIT(x,b)     x^=b;        //Toggles the particular bit
+volatile unsigned char command_ready, new_position=FALSE;
+unsigned char data_in[50];
+int data_count;
 
-void WaitMs(unsigned int ms);
+Coordonate received_new_position;
+// received commands:
+ISR( USART_RXC_vect) {
+	command_ready = FALSE;
+	// Get data from the USART in register
+	data_in[data_count] = UDR;
 
-int main()
+	if (data_in[data_count] == '\r') {
+
+		data_in[data_count] = '\0';
+		//uart_transmit_string(data_in);
+		// Reset to 0, ready to go again
+		//uart_transmit_string("\nchecking command : \"");
+		//uart_transmit_string(data_in);
+		//uart_transmit_string("\" \n");
+		read_command(data_in);
+		data_count = 0;
+		// si la commande est une notif de sms alors on le recupere et on l'interprete
+	} else {
+		data_count++;
+	}
+}
+
+void read_command(char* cmd)
 {
-    unsigned int ch;
+	//uart_transmit_string("checking command : ");
+	//uart_transmit_string(cmd);
+	if (strstr(cmd, "+CGNSINF:") != NULL) {
+		//uart_transmit_string("received position !");
+		read_coordonate(&received_new_position, cmd);
+		new_position = TRUE;
+	}
+}
 
-    uart_init(9600);        //Initialise the USART Module with the given Baudrate and
-                                                            //Frame format.
+Coordonate get_position()
+{
+	uart_transmit_string("AT+CGNSINF\n");
+	while(!new_position);
+	new_position = FALSE;
+	return received_new_position;
+}
 
-    while(1)   //Enter into a uncoditional while loop..
-        {
-            /*ch=uart_getc();
-            uart_puts("\n\n\t\t");
-            uart_putc('<');cd /
-            uart_putc(ch);
-            uart_putc('>');*/
-    		uart_puts("Hello pd\n");
-            WaitMs(1000);
-        }
+Coordonate get_fixed_position()
+{
+	return get_position();
+}
 
-    return 0;
+state = NOT_SECURED;
+last_state = NOT_SECURED;
+Coordonate fixed_position, position;
+
+int main(void) {
+	uart_init();
+
+	DDRB |= 0x01;    //Frame format.
+	for (;;) // Loop forever
+			{
+		switch (state) {
+		case NOT_SECURED:
+			// switch led verte on
+			PORTB |= (1 << PB0);
+			_delay_ms(500);
+			// switch led verte off
+			PORTB &= ~(1 << PB0);
+			set_state(GEO_SECURED); // turn LED off on next round
+			break;
+		case GEO_SECURED:
+			// switch led bleu on
+			PORTB |= (1 << PB1);
+			if (last_state != GEO_SECURED){
+				uart_transmit_string("AT+CGNSPWR=1\n");
+				_delay_ms(3000);
+				fixed_position = get_fixed_position();
+				uart_transmit_string("fixed latitude = ");
+				uart_transmit_string(fixed_position.latitude);
+				uart_transmit_string("\n fixed longitude = ");
+								uart_transmit_string(fixed_position.longitude);
+			}
+			_delay_ms(500);
+			position = get_fixed_position();
+			uart_transmit_string("\n current latitude = ");
+			uart_transmit_string(position.latitude);
+			uart_transmit_string("\n current longitude = ");
+			uart_transmit_string(position.longitude);
+			if (has_moved())
+					set_state(ALARM);
+			else
+				set_state(GEO_SECURED);
+			break;
+		case ALARM:
+			// switch led rouge on
+			PORTB |= (1 << PB2);
+			_delay_ms(500);
+			// switch led rouge off
+			PORTB &= ~(1 << PB2);
+			set_state(NOT_SECURED);
+			break;
+		}
+	}
+
 }
 
 
-void WaitMs(unsigned int ms)    //Generate a delay of ms milli second.
+int has_moved()
 {
-    unsigned int i;
-
-    for(i=0;i<=ms/10;i++)
-    {
-        _delay_ms(10);
-    }
+	return FALSE;
+}
+void set_state(State new_state){
+	last_state = state;
+	state = new_state;
 }
 
+void uart_init() {
+	UCSRB = (1 << RXEN) | (1 << TXEN);
+	// Turn on the transmission and reception circuitry
+	UCSRC = (1 << URSEL) | (1 << UCSZ0) | (1 << UCSZ1); // Use 8 - bit character sizes
+	UBRRH = ( BAUD_PRESCALE >> 8); // Load upper 8 - bits of the baud rate value into the high byte of the UBRR register
+	UBRRL = BAUD_PRESCALE; // Load lower 8 - bits of the baud rate value into the low byte of the UBRR register
+	UCSRB |= (1 << RXCIE); // Enable the USART Recieve Complete interrupt ( USART_RXC )
+	sei(); // Enable the Global Interrupt Enable flag so that interrupts can be processed
 
+}
+
+void uart_transmit_char(unsigned char data) {
+	while (!(UCSRA & (1 << UDRE)))
+		;
+	UDR = data;
+}
+
+void uart_transmit_string(char string[]) {
+	int i = 0;
+	while (string[i] > 0)
+		uart_transmit_char(string[i++]);
+}
 
